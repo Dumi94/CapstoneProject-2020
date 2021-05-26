@@ -1,0 +1,261 @@
+\documentclass{article}
+
+\begin{document}
+\author{Dumi}
+\title{CAPSTONE DATA CALCULATIONS}
+\maketitle
+Load the data first then do data cleaning. This allows the desired data frame to be worked with.
+Data wrangling
+<<echo=FALSE, include=FALSE>>==
+#insert dataset into the R-Sweave
+library(readxl)
+lexical_index <- read.csv("lied_v5.1.csv")
+
+#Now verify the contents of the dataset
+str(lexical_index)
+object.size(lexical_index)
+
+#Now conduct the first step towards data cleaning, remove unwanted columns through indexing 
+lexical_adj <- lexical_index[, -c(2,4:9,11:13)]
+
+#Now use the lexical_adj to remove the unwanted years 
+lexical_adjyears <- subset(lexical_adj, year >= "2000")
+
+#Now create a dataframe that contains sub-saharan African countries only
+african_countries <- subset(lexical_adjyears, countryn %in% c("Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros", "Congo Brazzaville", "Congo, Democratic Republic", "Cote d'Ivoire", "Djibouti", "Equatorial Guinea", "Eritrea", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea-Bissau", "Kenya","Lesotho", "Liberia", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", "South Africa", "Sudan", "South Sudan", "Swaziland", "Tanzania", "Togo", "Uganda", "Zambia", "Zimbabwe"), select = c(countryn:lexical_index))
+str(african_countries)
+#Change column names 
+namesAfro <- c("country", "year","democracy")
+colnames(african_countries) <- namesAfro
+@
+
+
+<<echo=FALSE, include=FALSE>>==
+#load the datasets of FDI, CPIA and Property rights then clean it
+myFDI <- read_xlsx("dataFDI.xlsx", na = "..")
+
+
+#remove unwanted columns
+myFDI<- myFDI[,-c(2,4)]
+
+#change column names
+namesFDI <- c("year", "country", "fdi")
+colnames(myFDI) <- namesFDI
+
+#load CPIA dataset
+myCPIA <- read_xlsx("dataCPIA.xlsx", na ="..")
+
+#remove unwanted columns
+myCPIA<- myCPIA[,-c(2,4)]
+
+#change column names
+namesCPIA <- c("year", "country", "public_sector")
+colnames(myCPIA) <- namesCPIA
+
+#load property rights dataset
+myProp <- read_xlsx("dataCPIA_Property_rights.xlsx", na= "..")
+
+#remove unwated columns
+myProp <- myProp[,-c(2,4)]
+
+#change column names
+namesProperty <- c("year", "country", "property_rights")
+colnames(myProp) <- namesProperty
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Check the common names of the dataframes
+names(c(african_countries, myCPIA, myFDI, myProp))
+
+#Now merge the datasets of african countries and FDI
+mergecount <- merge(african_countries, myFDI, by= c("country", "year"))
+
+#Now merge the institutions
+mergeinst <- merge(myCPIA, myProp, by=c("country", "year"))
+
+#Now do the final merging 
+mergeAfrica <- merge(mergecount, mergeinst, by = c("country", "year"))
+
+#Now view the structure
+str(mergeAfrica)
+object.size(mergeAfrica)
+@
+
+
+<<echo=FALSE, include=FALSE>>==
+#Now that I have generated the desired dataset, now engage in quantitative data analysis
+#These will be the following steps, use measures of central tendency and dispersion, first generate the output then data visualization. Then end with comments
+colnames(african_countries)
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Turn into a factor
+mergeAfrica[3] <- factor(mergeAfrica$democracy, levels = c(0:3, 6))
+levels(mergeAfrica$democracy) <- list("non-democracy"= c(0:3),
+                              "democracy" = 6)
+
+table(mergeAfrica$democracy)
+@
+
+
+<<echo=FALSE,include=FALSE>>==
+#Univariate analysis for fdi
+str(mergeAfrica)
+
+#Check the values of the fdi variable
+summary(mergeAfrica$fdi)
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Univariate for fdi
+library(car)
+densityPlot(mergeAfrica$fdi, na.rm=TRUE) # Transform the data since this seems to be biased
+
+#figure out how to rescale this
+summary(mergeAfrica$fdi) #fix the values and rescale the values
+
+#remove NAs in mergeAfrica and store them in a new vector 
+#Africa_Nas <- mergeAfrica[is.na(mergeAfrica$fdi), "fdi"]
+
+@
+
+<<echo=FALSE, include=FALSE>>==
+#PowerTransform my fdi variable
+#Give them a start to ensure all values are positive
+library(car)
+summary(powerTransform(mergeAfrica$fdi + 7, family = "bcPower"))
+
+#summary(powerTransform(fdi + 7, family = "bcPower"))
+#Check if all values are positive
+mergeAfrica$fdi <- summary(bcPower(mergeAfrica$fdi + 7, 0))
+
+#rounding the figures
+#mergeAfrica$fdi <- round(mergeAfrica$fdi, digits = 2)
+summary(mergeAfrica$fdi)
+
+#remove the values of 55s and replace with NAs
+library(tidyr)
+mergeAfrica$fdi <- replace(mergeAfrica$fdi, mergeAfrica$fdi == 55.00, NA)
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Log transform my data fdi data
+mergeAfrica$fdi <- log(mergeAfrica$fdi) #to remove negative values
+
+#Install ggplot library
+library(ggplot2)
+densityPlot(mergeAfrica$fdi, xlab = "Net inflows of fdi", main = "Overall net fdi inflows in sub-Saharan Africa 2005-2019")
+
+#Calculate standard deviation for fdi
+round(sd(mergeAfrica$fdi, na.rm = TRUE), digits = 2)
+
+#round off the figures of fdi
+mergeAfrica$fdi <- round(mergeAfrica$fdi, digits = 2)
+@
+
+<<echo=FALSE>>==
+#load a Univariate graph of Electoral Democracy 
+#barplot
+ggplot(mergeAfrica, aes(x=democracy)) + geom_bar()
+
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Create dummy variables
+mergeAfrica$electoraldemocracy <- ifelse(mergeAfrica$democracy == "democracy", 1, 0)
+
+mergeAfrica$electoral_nondemocratic <- ifelse(mergeAfrica$democracy =="non-democracy", 1,0)
+@
+
+<<echo=FALSE, include=FALSE>>==
+#Calculate linear regression with my variables
+summary(lm(fdi ~ property_rights  , data = mergeAfrica))
+@
+
+<<echo=FALSE>>==
+#load political instability data
+mypolitics <- read.csv("political instability.csv")
+
+#remove unwanted column
+mypolitics <- mypolitics[-2]
+
+#recode the naming
+namespolitical <- c("country", "year", "political_stability")
+colnames(mypolitics) <- namespolitical
+
+#now merge the datasets
+mergeAfrica <- merge(mergeAfrica, mypolitics, by=c("country", "year"))
+@
+
+<<echo=FALSE, results= "asis", include=TRUE>>==
+#Bivariate regression
+summary(lm(fdi ~ electoraldemocracy*property_rights, data = mergeAfrica))
+
+library(datasets)
+library(broom)
+library(ggplot2)
+library(lattice)
+library(QuantPsyc)
+#For electoral democracy
+ggplot(mergeAfrica, aes(x= electoraldemocracy, y=fdi) +
+  geom_smooth(method = lm) +
+  theme_bw() +
+  ggtitle ("Measuring electoral democracy on net fdi") +
+  ylab ("net fdi inflows as a % of GDP")
+
+#For electoral non_democratic
+ggplot(mergeAfrica, aes(x=electoral_nondemocratic, y=fdi)) +
+  geom_smooth(method = lm) +
+  theme_bw() +
+  ggtitle ("Measuring electoral non_democracy on net fdi") +
+  ylab ("net fdi inflows as a % of GDP")
+
+#Multivariate regression analysis
+#Correlation table
+invest_cor <- cor(mergeAfrica[,c("electoraldemocracy", "electoral_nondemocratic", "public_sector", "property_rights", "fdi", "political_stability" )], use = "complete.obs")
+
+library(stargazer)
+library(corrplot)
+library(Hmisc)
+library(ggmosaic)
+stargazer(round(invest_cor, 2), type ="Latex")
+
+corrplot(invest_cor)
+
+#regression table
+model1 <- lm(fdi ~ electoraldemocracy + public_sector + property_rights + political_stability, data = mergeAfrica) #leave variable as independent
+model2 <- lm(fdi ~ electoraldemocracy * public_sector + property_rights + political_stability, data = mergeAfrica) #interaction between electoral democracy and public sector 
+model3 <- lm(fdi ~ electoraldemocracy * property_rights + public_sector+ political_stability, data = mergeAfrica) #interaction between electoral democracy and property rights
+model4 <- lm(fdi ~ electoraldemocracy * political_stability + public_sector + property_rights, data= mergeAfrica)#interaction between electoral democracy amd political stability 
+model5 <- lm(fdi ~ electoraldemocracy * political_stability * public_sector * property_rights, data= mergeAfrica)
+
+model6 <- lm(fdi ~ electoral_nondemocratic * political_stability * public_sector * property_rights, data= mergeAfrica)
+
+stargazer(model1, model2, model3, model4, type = "latex", df=FALSE)
+
+#Regression summaries
+summary(model4)
+anova(model1, model2, model3, model4, model5)
+confint(Electro, level = 0.95)
+@
+
+<<echo=FALSE, include=FALSE>>==
+#diagnostics
+#wts <- 1/fitted(lm(abs(residuals(model1$residuals)) ~ fitted(model1$fitted.values))) ^2
+
+#try the model with weighted regression
+#model1 <- lm(fdi ~ democracy + public_sector + property_rights + political_stability, data = mergeAfrica, weigh)
+
+subset(mergeAfrica, democracy == "democracy", select = country )
+@
+
+
+
+
+
+
+
+
+
+
+\end{document}
